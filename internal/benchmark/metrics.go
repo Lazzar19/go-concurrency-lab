@@ -37,10 +37,12 @@ type Resources struct {
 }
 
 // TaskResult is one finished task.
+// At is completion time relative to the start of that run.
 // E2E is submission to completion, including queue wait.
 // Service is the work function only.
 type TaskResult struct {
 	ID      int           `json:"id"`
+	At      time.Duration `json:"at"`
 	E2E     time.Duration `json:"e2e"`
 	Service time.Duration `json:"service"`
 }
@@ -61,6 +63,11 @@ type Result struct {
 	Environment Environment `json:"environment"`
 	Config      Config      `json:"config"`
 	Runs        []RunResult `json:"runs"`
+}
+
+// CurrentEnvironment is the runtime context stamped on each result.
+func CurrentEnvironment() Environment {
+	return currentEnvironment()
 }
 
 func currentEnvironment() Environment {
