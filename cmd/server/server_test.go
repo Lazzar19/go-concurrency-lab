@@ -3,6 +3,7 @@ package main
 import (
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -16,6 +17,15 @@ func TestHealth(t *testing.T) {
 	}
 	if rec.Body.String() != "ok\n" {
 		t.Fatalf("body = %q", rec.Body.String())
+	}
+}
+
+func TestBenchmarkRouteIsWired(t *testing.T) {
+	req := httptest.NewRequest(http.MethodPost, "/api/benchmarks", strings.NewReader(`{}`))
+	rec := httptest.NewRecorder()
+	newMux().ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", rec.Code)
 	}
 }
 

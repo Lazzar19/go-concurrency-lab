@@ -3,11 +3,14 @@ package main
 import (
 	"io"
 	"net/http"
+
+	"github.com/Lazzar19/go-concurrency-lab/internal/api"
 )
 
 func newMux() *http.ServeMux {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", health)
+	api.NewHandler().Register(mux)
 	return mux
 }
 
