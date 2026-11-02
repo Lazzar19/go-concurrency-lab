@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Go concurrency lab</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="wrap">
+    <header class="mast">
+      <div>
+        <p class="eyebrow">Bench 01 · same workload</p>
+        <h1>Four schedulers, one trace</h1>
+      </div>
+      <p class="note">Three repetitions show noise. They are not a statistical proof.</p>
+    </header>
+
+    <div class="bench">
+      <form id="controls" class="rail">
+        <p class="rail-label">Input</p>
+        <label>Strategy
+          <select id="strategy" name="strategy">
+            <option value="sequential">Sequential</option>
+            <option value="fanout">Fan-out</option>
+            <option value="semaphore">Semaphore</option>
+            <option value="worker_pool" selected>Worker pool</option>
+          </select>
+        </label>
+        <label>Workload
+          <select id="workload" name="workload">
+            <option value="cpu" selected>CPU</option>
+            <option value="sleep">Sleep</option>
+          </select>
+        </label>
+        <label>Tasks
+          <input id="tasks" name="tasks" type="number" min="1" max="100000" value="40">
+        </label>
+        <label>Concurrency
+          <input id="concurrency" name="concurrency" type="number" min="0" max="10000" value="4">
+        </label>
+        <label>Queue size
+          <input id="queue_size" name="queue_size" type="number" min="0" value="0">
+        </label>
+        <label>Repetitions
+          <input id="runs" name="runs" type="number" min="1" value="1">
+        </label>
+        <label id="iterations-field">Iterations
+          <input id="iterations" name="iterations" type="number" min="1" value="4000">
+        </label>
+        <label id="task-ms-field" hidden>Task ms
+          <input id="task_ms" name="task_ms" type="number" min="1" value="5">
+        </label>
+        <div class="actions">
+          <button id="compare" class="primary" type="button">Compare all</button>
+          <button id="run-one" type="button">Run selected</button>
+          <button id="cancel" type="button" disabled>Cancel</button>
+        </div>
+        <p class="hint">Concurrency caps the semaphore and the worker pool. Queue size applies to the worker pool. Percentiles stay on each run; only throughput uses a median.</p>
+      </form>
+
+      <div class="readout">
+        <section class="strip" aria-live="polite">
+          <p class="status" id="status">Idle</p>
+          <div class="bar" aria-hidden="true"><span id="bar"></span></div>
+          <p class="meta" id="meta"></p>
+          <p class="error" id="error" hidden></p>
+        </section>
+
+        <section class="cards" id="cards"></section>
+
+        <section class="charts">
+          <figure>
+            <figcaption>End-to-end latency</figcaption>
+            <canvas id="latency" width="640" height="220" aria-label="End-to-end latency over time"></canvas>
+          </figure>
+          <figure>
+            <figcaption>Windowed throughput</figcaption>
+            <canvas id="throughput" width="640" height="220" aria-label="Throughput over the last 200 milliseconds"></canvas>
+          </figure>
+          <figure>
+            <figcaption>Goroutines</figcaption>
+            <canvas id="goroutines" width="640" height="220" aria-label="Goroutine count over time"></canvas>
+          </figure>
+          <figure>
+            <figcaption>Heap</figcaption>
+            <canvas id="heap" width="640" height="220" aria-label="Heap allocation over time"></canvas>
+          </figure>
+        </section>
+        <ul class="legend" id="legend"></ul>
+
+        <section class="log">
+          <div class="table-wrap">
+            <table id="comparison">
+              <caption>Each row is one repetition. p99 is never averaged across repetitions.</caption>
+              <thead>
+                <tr>
+                  <th>Strategy</th>
+                  <th>Run</th>
+                  <th>Throughput</th>
+                  <th>Median</th>
+                  <th>E2E p50</th>
+                  <th>E2E p99</th>
+                  <th>Service p50</th>
+                  <th>Service p99</th>
+                  <th>Goroutines</th>
+                  <th>Heap</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
+  <script src="/build/charts.js"></script>
+  <script src="/build/app.js"></script>
+</body>
+</html>
