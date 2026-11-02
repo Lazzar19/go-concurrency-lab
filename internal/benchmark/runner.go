@@ -13,6 +13,14 @@ import (
 // Run executes cfg.Runs repetitions. On cancellation the result includes
 // whatever repetitions and tasks finished, and the error is ctx.Err().
 func Run(ctx context.Context, cfg Config) (Result, error) {
+	return RunObserved(ctx, cfg, nil)
+}
+
+// RunObserved is Run with a Monitor updated as each task finishes.
+// mon may be nil. Live percentiles on the monitor come from a histogram.
+// Exact percentiles are computed once, from the full sample slice, when the
+// run finishes.
+func RunObserved(ctx context.Context, cfg Config, mon *Monitor) (Result, error) {
 	if err := cfg.Validate(); err != nil {
 		return Result{}, err
 	}
@@ -26,7 +34,7 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 		if err := ctx.Err(); err != nil {
 			return result, err
 		}
-		run, err := execute(ctx, cfg)
+		run, err := execute(ctx, cfg, mon)
 		result.Runs = append(result.Runs, run)
 		if err != nil {
 			return result, err
@@ -35,8 +43,8 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 	return result, nil
 }
 
-func execute(ctx context.Context, cfg Config) (RunResult, error) {
-	rec := &recorder{}
+func execute(ctx context.Context, cfg Config, mon *Monitor) (RunResult, error) {
+	rec := &recorder{mon: mon}
 	sampler := startSampler()
 	work := cfg.newWork()
 
@@ -45,7 +53,7 @@ func execute(ctx context.Context, cfg Config) (RunResult, error) {
 	duration := time.Since(started)
 	resources := sampler.stop()
 
-	return summarize(rec.snapshot(), duration, resources), err
+	return summarize(rec.snapshot(), started, duration, resources), err
 }
 
 func dispatch(ctx context.Context, cfg Config, work workFunc, rec *recorder) error {
@@ -63,14 +71,19 @@ func dispatch(ctx context.Context, cfg Config, work workFunc, rec *recorder) err
 	}
 }
 
-func summarize(items []observation, wall time.Duration, resources Resources) RunResult {
+func summarize(items []observation, runStart time.Time, wall time.Duration, resources Resources) RunResult {
 	tasks := make([]TaskResult, len(items))
 	e2e := make([]time.Duration, len(items))
 	service := make([]time.Duration, len(items))
 	for i, item := range items {
 		e2e[i] = item.end.Sub(item.submit)
 		service[i] = item.end.Sub(item.start)
-		tasks[i] = TaskResult{ID: item.id, E2E: e2e[i], Service: service[i]}
+		tasks[i] = TaskResult{
+			ID:      item.id,
+			At:      item.end.Sub(runStart),
+			E2E:     e2e[i],
+			Service: service[i],
+		}
 	}
 
 	throughput := 0.0
