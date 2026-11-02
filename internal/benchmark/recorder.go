@@ -17,12 +17,16 @@ type observation struct {
 type recorder struct {
 	mu    sync.Mutex
 	items []observation
+	mon   *Monitor
 }
 
 func (r *recorder) add(item observation) {
 	r.mu.Lock()
 	r.items = append(r.items, item)
 	r.mu.Unlock()
+	if r.mon != nil {
+		r.mon.record(item.end.Sub(item.submit), item.end)
+	}
 }
 
 func (r *recorder) snapshot() []observation {
