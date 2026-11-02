@@ -5,12 +5,14 @@ import (
 	"net/http"
 
 	"github.com/Lazzar19/go-concurrency-lab/internal/api"
+	"github.com/Lazzar19/go-concurrency-lab/web"
 )
 
 func newMux() *http.ServeMux {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", health)
 	api.NewHandler().Register(mux)
+	mux.Handle("GET /", http.FileServer(http.FS(web.Files)))
 	return mux
 }
 

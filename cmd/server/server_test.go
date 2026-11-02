@@ -29,6 +29,27 @@ func TestBenchmarkRouteIsWired(t *testing.T) {
 	}
 }
 
+func TestDashboardAssets(t *testing.T) {
+	mux := newMux()
+	pages := []struct {
+		path   string
+		needle string
+	}{
+		{path: "/", needle: "not a statistical proof"},
+		{path: "/styles.css", needle: "legend"},
+		{path: "/build/charts.js", needle: "LabCharts"},
+		{path: "/build/app.js", needle: "EventSource"},
+	}
+	for _, page := range pages {
+		req := httptest.NewRequest(http.MethodGet, page.path, nil)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), page.needle) {
+			t.Fatalf("%s status=%d body=%q", page.path, rec.Code, rec.Body.String())
+		}
+	}
+}
+
 func TestListenAddr(t *testing.T) {
 	if got := listenAddr(""); got != "0.0.0.0:8080" {
 		t.Fatalf("default addr = %s", got)
