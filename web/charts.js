@@ -1,0 +1,103 @@
+// LabCharts draws line series on a canvas. It has no dependencies.
+(function () {
+  function draw(canvas, series, options) {
+    const opts = options || {};
+    const width = canvas.clientWidth || 320;
+    const height = canvas.clientHeight || 220;
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = Math.round(width * dpr);
+    canvas.height = Math.round(height * dpr);
+    const ctx = canvas.getContext("2d");
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, width, height);
+
+    const pad = { left: 58, right: 12, top: 16, bottom: 28 };
+    const plotW = Math.max(1, width - pad.left - pad.right);
+    const plotH = Math.max(1, height - pad.top - pad.bottom);
+
+    ctx.fillStyle = "#fffdf8";
+    ctx.fillRect(0, 0, width, height);
+
+    const points = [];
+    (series || []).forEach(function (line) {
+      (line.data || []).forEach(function (point) {
+        if (Number.isFinite(point.x) && Number.isFinite(point.y)) {
+          points.push(point);
+        }
+      });
+    });
+
+    if (!points.length) {
+      ctx.fillStyle = "#6b6258";
+      ctx.font = "13px ui-sans-serif, sans-serif";
+      ctx.fillText(opts.empty || "Waiting for a run", pad.left, pad.top + 18);
+      return;
+    }
+
+    let minX = points[0].x;
+    let maxX = points[0].x;
+    let maxY = 0;
+    points.forEach(function (point) {
+      minX = Math.min(minX, point.x);
+      maxX = Math.max(maxX, point.x);
+      maxY = Math.max(maxY, point.y);
+    });
+    if (maxX <= minX) {
+      maxX = minX + 1;
+    }
+    if (maxY <= 0) {
+      maxY = 1;
+    }
+
+    ctx.strokeStyle = "#e7dece";
+    ctx.fillStyle = "#6b6258";
+    ctx.lineWidth = 1;
+    ctx.font = "11px ui-monospace, monospace";
+    for (let tick = 0; tick <= 4; tick++) {
+      const y = pad.top + (plotH * tick) / 4;
+      const value = maxY * (1 - tick / 4);
+      ctx.beginPath();
+      ctx.moveTo(pad.left, y);
+      ctx.lineTo(pad.left + plotW, y);
+      ctx.stroke();
+      ctx.fillText(formatTick(value), 6, y + 4);
+    }
+    ctx.fillText(opts.xLabel || "ms", pad.left, height - 8);
+
+    (series || []).forEach(function (line) {
+      const data = line.data || [];
+      if (!data.length) {
+        return;
+      }
+      ctx.beginPath();
+      ctx.strokeStyle = line.color || "#1e1a16";
+      ctx.lineWidth = 1.75;
+      data.forEach(function (point, index) {
+        const x = pad.left + ((point.x - minX) / (maxX - minX)) * plotW;
+        const y = pad.top + (1 - point.y / maxY) * plotH;
+        if (index === 0) {
+          ctx.moveTo(x, y);
+        } else {
+          ctx.lineTo(x, y);
+        }
+      });
+      ctx.stroke();
+    });
+  }
+
+  function formatTick(value) {
+    const abs = Math.abs(value);
+    if (abs >= 1000000) {
+      return (value / 1000000).toFixed(1) + "M";
+    }
+    if (abs >= 1000) {
+      return (value / 1000).toFixed(1) + "k";
+    }
+    if (abs >= 10) {
+      return value.toFixed(0);
+    }
+    return value.toFixed(1);
+  }
+
+  window.LabCharts = { draw: draw };
+})();
