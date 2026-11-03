@@ -77,7 +77,9 @@ function formatTick(value: number): string {
   if (abs >= 1000000) return (value / 1000000).toFixed(1) + "M";
   if (abs >= 1000) return (value / 1000).toFixed(1) + "k";
   if (abs >= 10) return value.toFixed(0);
-  return value.toFixed(1);
+  if (abs >= 1) return value.toFixed(1);
+  if (abs >= 0.01) return value.toFixed(2);
+  return value.toFixed(3);
 }
 
 window.LabCharts = { draw };
