@@ -57,8 +57,7 @@ func (m *Monitor) record(e2e time.Duration, at time.Time) {
 // over the last 200ms, or over the whole elapsed time when the run is younger.
 func (m *Monitor) Snapshot() Progress {
 	goroutines := runtime.NumGoroutine()
-	var mem runtime.MemStats
-	runtime.ReadMemStats(&mem)
+	heap := cachedHeap()
 
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -83,7 +82,7 @@ func (m *Monitor) Snapshot() Progress {
 		E2EP50:           m.hist.percentile(50),
 		E2EP95:           m.hist.percentile(95),
 		Goroutines:       goroutines,
-		HeapBytes:        mem.HeapAlloc,
+		HeapBytes:        heap,
 	}
 }
 

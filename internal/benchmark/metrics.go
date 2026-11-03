@@ -5,6 +5,7 @@ import (
 	"runtime"
 	"sort"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -174,6 +175,7 @@ func (s *sampler) record(includeHeap bool) {
 	if includeHeap {
 		var ms runtime.MemStats
 		runtime.ReadMemStats(&ms)
+		noteHeap(ms.HeapAlloc)
 		if ms.HeapAlloc > s.hPeak {
 			s.hPeak = ms.HeapAlloc
 		}
@@ -197,8 +199,27 @@ func (s *sampler) stop() Resources {
 	}
 }
 
+// lastHeap is the most recent HeapAlloc. Live snapshots read it instead of
+// calling ReadMemStats again on every poll.
+var lastHeap atomic.Uint64
+
+func noteHeap(heap uint64) {
+	if heap > 0 {
+		lastHeap.Store(heap)
+	}
+}
+
+func cachedHeap() uint64 {
+	if heap := lastHeap.Load(); heap > 0 {
+		return heap
+	}
+	_, heap := readResources()
+	return heap
+}
+
 func readResources() (goroutines int, heap uint64) {
 	var ms runtime.MemStats
 	runtime.ReadMemStats(&ms)
+	noteHeap(ms.HeapAlloc)
 	return runtime.NumGoroutine(), ms.HeapAlloc
 }
