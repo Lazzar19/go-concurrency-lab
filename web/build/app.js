@@ -19,6 +19,7 @@ const state = {
     focus: null,
     results: {},
     message: "",
+    outcome: "",
 };
 let activeSocket = null;
 let stopQueue = false;
@@ -99,15 +100,24 @@ function showError(message) {
     node.hidden = !message;
     node.textContent = message;
 }
+function outcomeLabel() {
+    if (state.outcome === "cancelled")
+        return "Cancelled";
+    if (state.outcome === "failed")
+        return "Failed";
+    if (state.progress)
+        return "Finished";
+    return "Idle";
+}
 function renderProgress() {
     const progress = state.progress;
     const label = state.activeStrategy
         ? strategyMeta(state.activeStrategy).label
         : state.running
             ? "Starting"
-            : "Finished";
+            : outcomeLabel();
     if (!progress) {
-        must("status").textContent = state.running ? "Starting " + label : "Idle";
+        must("status").textContent = state.running ? "Starting " + label : outcomeLabel();
         must("bar").style.width = "0%";
         must("meta").textContent = state.message;
         return;
@@ -122,6 +132,10 @@ function renderProgress() {
         progress.goroutines + " goroutines",
         formatBytes(progress.heap_bytes),
     ];
+    if (state.running) {
+        parts.push("p50 " + formatMS(progress.e2e_p50_ms));
+        parts.push("p95 " + formatMS(progress.e2e_p95_ms));
+    }
     if (state.message)
         parts.push(state.message);
     must("meta").textContent = parts.join(" · ");
@@ -195,6 +209,7 @@ function renderTable() {
                 renderTable();
                 renderCards();
                 drawCharts();
+                updateExportButtons();
             };
             row.addEventListener("click", select);
             row.addEventListener("keydown", (event) => {
@@ -226,6 +241,10 @@ function drawCharts() {
         color: strategy.color,
         data: finitePoints(pick(state.results[strategy.id]?.live ?? emptyLive())),
     }));
+    const runNumber = (state.focus?.run ?? 0) + 1;
+    must("latency-caption").textContent = state.focus
+        ? "End-to-end latency · run " + runNumber
+        : "End-to-end latency";
     window.LabCharts.draw(must("latency"), latency, { xLabel: "ms", empty: "Appears when a run finishes" });
     window.LabCharts.draw(must("throughput"), live((samples) => samples.throughput), { xLabel: "ms", empty: "Sampled during the run" });
     window.LabCharts.draw(must("goroutines"), live((samples) => samples.goroutines), { xLabel: "ms" });
@@ -340,6 +359,7 @@ function watch(id, strategy) {
                         state.message = env.go_version + " · GOMAXPROCS " + env.gomaxprocs + " · " + env.num_cpu + " CPUs";
                     }
                     renderAll();
+                    state.outcome = payload.status;
                     if (payload.status === "failed") {
                         reject(new Error(full.error || "benchmark failed"));
                         return;
@@ -370,6 +390,9 @@ async function runStrategy(strategy) {
     if (!res.ok || !body.id)
         throw new Error(body.error || "HTTP " + res.status);
     state.activeId = body.id;
+    if (stopQueue) {
+        void fetch("/api/benchmarks/" + body.id + "/cancel", { method: "POST" });
+    }
     return watch(body.id, strategy);
 }
 async function runQueue(strategies) {
@@ -383,6 +406,7 @@ async function runQueue(strategies) {
         state.configKey = key;
     }
     stopQueue = false;
+    state.outcome = "";
     setRunning(true);
     try {
         for (const strategy of strategies) {
@@ -405,6 +429,7 @@ function syncWorkloadFields() {
     const sleep = must("workload").value === "sleep";
     must("iterations-field").hidden = sleep;
     must("task-ms-field").hidden = !sleep;
+    must("sleep-note").hidden = !sleep;
 }
 function selectedStrategy() {
     const value = must("strategy").value;
@@ -412,6 +437,9 @@ function selectedStrategy() {
         return value;
     return "sequential";
 }
+must("controls").addEventListener("submit", (event) => {
+    event.preventDefault();
+});
 must("workload").addEventListener("change", syncWorkloadFields);
 must("compare").addEventListener("click", () => {
     void runQueue(STRATEGIES.map((item) => item.id));

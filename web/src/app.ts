@@ -111,6 +111,7 @@ const state: {
   focus: Focus | null;
   results: Partial<Record<StrategyId, Entry>>;
   message: string;
+  outcome: string;
 } = {
   running: false,
   activeId: "",
@@ -120,6 +121,7 @@ const state: {
   focus: null,
   results: {},
   message: "",
+  outcome: "",
 };
 
 let activeSocket: EventSource | null = null;
@@ -204,15 +206,22 @@ function showError(message: string): void {
   node.textContent = message;
 }
 
+function outcomeLabel(): string {
+  if (state.outcome === "cancelled") return "Cancelled";
+  if (state.outcome === "failed") return "Failed";
+  if (state.progress) return "Finished";
+  return "Idle";
+}
+
 function renderProgress(): void {
   const progress = state.progress;
   const label = state.activeStrategy
     ? strategyMeta(state.activeStrategy).label
     : state.running
       ? "Starting"
-      : "Finished";
+      : outcomeLabel();
   if (!progress) {
-    must<HTMLElement>("status").textContent = state.running ? "Starting " + label : "Idle";
+    must<HTMLElement>("status").textContent = state.running ? "Starting " + label : outcomeLabel();
     must<HTMLElement>("bar").style.width = "0%";
     must<HTMLElement>("meta").textContent = state.message;
     return;
@@ -227,6 +236,10 @@ function renderProgress(): void {
     progress.goroutines + " goroutines",
     formatBytes(progress.heap_bytes),
   ];
+  if (state.running) {
+    parts.push("p50 " + formatMS(progress.e2e_p50_ms));
+    parts.push("p95 " + formatMS(progress.e2e_p95_ms));
+  }
   if (state.message) parts.push(state.message);
   must<HTMLElement>("meta").textContent = parts.join(" · ");
 }
@@ -297,6 +310,7 @@ function renderTable(): void {
         renderTable();
         renderCards();
         drawCharts();
+        updateExportButtons();
       };
       row.addEventListener("click", select);
       row.addEventListener("keydown", (event) => {
@@ -332,6 +346,10 @@ function drawCharts(): void {
       data: finitePoints(pick(state.results[strategy.id]?.live ?? emptyLive())),
     }));
 
+  const runNumber = (state.focus?.run ?? 0) + 1;
+  must<HTMLElement>("latency-caption").textContent = state.focus
+    ? "End-to-end latency · run " + runNumber
+    : "End-to-end latency";
   window.LabCharts.draw(must("latency"), latency, { xLabel: "ms", empty: "Appears when a run finishes" });
   window.LabCharts.draw(must("throughput"), live((samples) => samples.throughput), { xLabel: "ms", empty: "Sampled during the run" });
   window.LabCharts.draw(must("goroutines"), live((samples) => samples.goroutines), { xLabel: "ms" });
@@ -447,6 +465,7 @@ function watch(id: string, strategy: StrategyId): Promise<string> {
               state.message = env.go_version + " · GOMAXPROCS " + env.gomaxprocs + " · " + env.num_cpu + " CPUs";
             }
             renderAll();
+            state.outcome = payload.status;
             if (payload.status === "failed") {
               reject(new Error(full.error || "benchmark failed"));
               return;
@@ -476,6 +495,9 @@ async function runStrategy(strategy: StrategyId): Promise<string> {
   const body = (await res.json().catch(() => ({}))) as { id?: string; error?: string };
   if (!res.ok || !body.id) throw new Error(body.error || "HTTP " + res.status);
   state.activeId = body.id;
+  if (stopQueue) {
+    void fetch("/api/benchmarks/" + body.id + "/cancel", { method: "POST" });
+  }
   return watch(body.id, strategy);
 }
 
@@ -489,6 +511,7 @@ async function runQueue(strategies: StrategyId[]): Promise<void> {
     state.configKey = key;
   }
   stopQueue = false;
+  state.outcome = "";
   setRunning(true);
   try {
     for (const strategy of strategies) {
@@ -509,6 +532,7 @@ function syncWorkloadFields(): void {
   const sleep = must<HTMLSelectElement>("workload").value === "sleep";
   must<HTMLElement>("iterations-field").hidden = sleep;
   must<HTMLElement>("task-ms-field").hidden = !sleep;
+  must<HTMLElement>("sleep-note").hidden = !sleep;
 }
 
 function selectedStrategy(): StrategyId {
@@ -517,6 +541,9 @@ function selectedStrategy(): StrategyId {
   return "sequential";
 }
 
+must<HTMLFormElement>("controls").addEventListener("submit", (event) => {
+  event.preventDefault();
+});
 must<HTMLSelectElement>("workload").addEventListener("change", syncWorkloadFields);
 must<HTMLButtonElement>("compare").addEventListener("click", () => {
   void runQueue(STRATEGIES.map((item) => item.id));

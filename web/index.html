@@ -62,6 +62,7 @@
           <button id="cancel" type="button" disabled>Cancel</button>
         </div>
         <p class="hint">Concurrency caps the semaphore and the worker pool. Queue size applies to the worker pool. Percentiles stay on each run; only throughput uses a median.</p>
+        <p class="hint" id="sleep-note" hidden>Sleep releases the processor. Unbounded fan-out stays cheap until the goroutine count and the heap grow.</p>
       </form>
 
       <div class="readout">
@@ -80,11 +81,11 @@
 
         <section class="charts">
           <figure>
-            <figcaption>End-to-end latency</figcaption>
+            <figcaption id="latency-caption">End-to-end latency</figcaption>
             <canvas id="latency" width="640" height="220" aria-label="End-to-end latency over time"></canvas>
           </figure>
           <figure>
-            <figcaption>Windowed throughput</figcaption>
+            <figcaption>Windowed throughput (tasks/s)</figcaption>
             <canvas id="throughput" width="640" height="220" aria-label="Throughput over the last 200 milliseconds"></canvas>
           </figure>
           <figure>
@@ -92,7 +93,7 @@
             <canvas id="goroutines" width="640" height="220" aria-label="Goroutine count over time"></canvas>
           </figure>
           <figure>
-            <figcaption>Heap</figcaption>
+            <figcaption>Heap (MiB)</figcaption>
             <canvas id="heap" width="640" height="220" aria-label="Heap allocation over time"></canvas>
           </figure>
         </section>
