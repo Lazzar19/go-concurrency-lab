@@ -255,6 +255,95 @@ func TestUnknownBenchmark(t *testing.T) {
 	}
 }
 
+func TestExportFullJSONAndSummaryCSV(t *testing.T) {
+	_, ts := newTestServer(t)
+	res, raw := postJSON(t, ts.URL+"/api/benchmarks", `{
+		"strategy":"sequential",
+		"workload":"cpu",
+		"tasks":6,
+		"iterations":20,
+		"runs":2
+	}`)
+	if res.StatusCode != http.StatusAccepted {
+		t.Fatalf("start = %d (%s)", res.StatusCode, raw)
+	}
+	var started struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(raw, &started); err != nil {
+		t.Fatal(err)
+	}
+	waitStatus(t, ts.URL, started.ID, "completed")
+
+	body := getBody(t, ts.URL+"/api/benchmarks/"+started.ID+"/export.json")
+	var doc struct {
+		Runs []struct {
+			Samples []struct {
+				ID        int     `json:"id"`
+				E2EMS     float64 `json:"e2e_ms"`
+				ServiceMS float64 `json:"service_ms"`
+			} `json:"samples"`
+		} `json:"runs"`
+	}
+	if err := json.Unmarshal(body, &doc); err != nil {
+		t.Fatal(err)
+	}
+	if len(doc.Runs) != 2 {
+		t.Fatalf("json runs = %d", len(doc.Runs))
+	}
+	for _, run := range doc.Runs {
+		if len(run.Samples) != 6 {
+			t.Fatalf("samples = %d, want 6", len(run.Samples))
+		}
+		for _, sample := range run.Samples {
+			if sample.E2EMS < sample.ServiceMS {
+				t.Fatalf("sample %d e2e %v < service %v", sample.ID, sample.E2EMS, sample.ServiceMS)
+			}
+		}
+	}
+
+	csvBody := string(getBody(t, ts.URL+"/api/benchmarks/"+started.ID+"/export.csv"))
+	lines := strings.Split(strings.TrimSpace(csvBody), "\n")
+	if len(lines) != 3 {
+		t.Fatalf("csv lines = %d, want header + 2 runs\n%s", len(lines), csvBody)
+	}
+	if !strings.Contains(lines[0], "e2e_p99_ms") || strings.Contains(csvBody, "e2e_ms") {
+		t.Fatalf("csv should be a summary, got %s", lines[0])
+	}
+}
+
+func TestExportRejectsRunningBenchmark(t *testing.T) {
+	_, ts := newTestServer(t)
+	res, raw := postJSON(t, ts.URL+"/api/benchmarks", `{
+		"strategy":"worker_pool",
+		"workload":"sleep",
+		"tasks":30,
+		"concurrency":1,
+		"task_ms":300,
+		"queue_size":0,
+		"runs":1
+	}`)
+	if res.StatusCode != http.StatusAccepted {
+		t.Fatalf("start = %d (%s)", res.StatusCode, raw)
+	}
+	var started struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(raw, &started); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { cancelBench(t, ts.URL, started.ID) })
+
+	export, err := http.Get(ts.URL + "/api/benchmarks/" + started.ID + "/export.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer export.Body.Close()
+	if export.StatusCode != http.StatusConflict {
+		t.Fatalf("export status = %d, want 409", export.StatusCode)
+	}
+}
+
 func TestDownsampleKeepsEnds(t *testing.T) {
 	tasks := make([]benchmark.TaskResult, 500)
 	for i := range tasks {
@@ -282,6 +371,23 @@ func newTestServer(t *testing.T) (*Handler, *httptest.Server) {
 	ts := httptest.NewServer(mux)
 	t.Cleanup(ts.Close)
 	return h, ts
+}
+
+func getBody(t *testing.T, url string) []byte {
+	t.Helper()
+	res, err := http.Get(url)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("GET %s = %d", url, res.StatusCode)
+	}
+	raw, err := io.ReadAll(res.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return raw
 }
 
 func postJSON(t *testing.T, url, body string) (*http.Response, []byte) {

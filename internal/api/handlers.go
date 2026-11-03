@@ -33,6 +33,8 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/benchmarks/{id}", h.Get)
 	mux.HandleFunc("POST /api/benchmarks/{id}/cancel", h.Cancel)
 	mux.HandleFunc("GET /api/benchmarks/{id}/stream", h.Stream)
+	mux.HandleFunc("GET /api/benchmarks/{id}/export.json", h.ExportJSON)
+	mux.HandleFunc("GET /api/benchmarks/{id}/export.csv", h.ExportCSV)
 }
 
 // Start validates the body and launches one benchmark.
