@@ -104,6 +104,34 @@ func TestCancelStopsRemainingTasks(t *testing.T) {
 	assertUniqueTasks(t, got.Runs[0], cfg.Tasks)
 }
 
+func TestCancelStopsCPUFanout(t *testing.T) {
+	cfg := Config{
+		Strategy:   StrategyFanout,
+		Workload:   WorkloadCPU,
+		Tasks:      12,
+		Iterations: 8_000_000,
+		Runs:       1,
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Millisecond)
+	defer cancel()
+
+	started := time.Now()
+	got, err := Run(ctx, cfg)
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("error = %v, want deadline exceeded", err)
+	}
+	if time.Since(started) > time.Second {
+		t.Fatalf("cancel returned after %s", time.Since(started))
+	}
+	if len(got.Runs) != 1 {
+		t.Fatalf("runs = %d, want 1 partial run", len(got.Runs))
+	}
+	if got.Runs[0].TasksCompleted >= cfg.Tasks {
+		t.Fatalf("completed = %d, want fewer than %d", got.Runs[0].TasksCompleted, cfg.Tasks)
+	}
+	assertUniqueTasks(t, got.Runs[0], cfg.Tasks)
+}
+
 func TestValidateRejectsBadConfig(t *testing.T) {
 	cases := []Config{
 		{Strategy: "nope", Workload: WorkloadCPU, Tasks: 1, Iterations: 1, Runs: 1},

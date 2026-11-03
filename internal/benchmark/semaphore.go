@@ -32,6 +32,9 @@ func runSemaphore(ctx context.Context, cfg Config, work workFunc, rec *recorder)
 			}
 			start := time.Now()
 			work(ctx)
+			if ctx.Err() != nil {
+				return
+			}
 			rec.add(observation{
 				id:     id,
 				submit: submit,

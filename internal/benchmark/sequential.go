@@ -13,6 +13,9 @@ func runSequential(ctx context.Context, cfg Config, work workFunc, rec *recorder
 		submit := time.Now()
 		start := time.Now()
 		work(ctx)
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		rec.add(observation{
 			id:     id,
 			submit: submit,

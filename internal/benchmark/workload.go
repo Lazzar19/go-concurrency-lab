@@ -30,18 +30,25 @@ func (c Config) newWork() workFunc {
 		if nbytes < 1 {
 			nbytes = 32
 		}
-		return func(context.Context) {
-			cpuWork(iterations, nbytes)
+		return func(ctx context.Context) {
+			cpuWork(ctx, iterations, nbytes)
 		}
 	}
 }
 
 // cpuWork hashes a fixed buffer so the compiler cannot eliminate the loop.
 // iterations and nbytes are the inputs; elapsed time is the output.
-func cpuWork(iterations, nbytes int) {
+// The loop checks ctx so a cancelled CPU run can stop before the last hash.
+func cpuWork(ctx context.Context, iterations, nbytes int) {
+	if ctx.Err() != nil {
+		return
+	}
 	buf := make([]byte, nbytes)
 	sum := sha256.Sum256(buf)
 	for i := 1; i < iterations; i++ {
+		if i&63 == 0 && ctx.Err() != nil {
+			return
+		}
 		sum = sha256.Sum256(sum[:])
 	}
 	runtime.KeepAlive(&sum)

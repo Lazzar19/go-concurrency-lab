@@ -27,6 +27,9 @@ func runWorkerPool(ctx context.Context, cfg Config, work workFunc, rec *recorder
 				}
 				start := time.Now()
 				work(ctx)
+				if ctx.Err() != nil {
+					continue
+				}
 				rec.add(observation{
 					id:     item.id,
 					submit: item.submit,
