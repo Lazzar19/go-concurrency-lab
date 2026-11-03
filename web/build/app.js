@@ -1,4 +1,9 @@
 "use strict";
+const PRESETS = {
+    light: { tasks: 200, concurrency: 4, queue_size: 0, runs: 1, iterations: 2000 },
+    medium: { tasks: 2000, concurrency: 8, queue_size: 32, runs: 3, iterations: 8000 },
+    heavy: { tasks: 20000, concurrency: 16, queue_size: 128, runs: 3, iterations: 20000 },
+};
 const STRATEGIES = [
     { id: "sequential", label: "Sequential", color: "#9aa89a" },
     { id: "fanout", label: "Fan-out", color: "#e37b3a" },
@@ -82,6 +87,9 @@ function setRunning(running) {
     must("compare").disabled = running;
     must("run-one").disabled = running;
     must("cancel").disabled = !running;
+    must("presets").querySelectorAll("button").forEach((button) => {
+        button.disabled = running;
+    });
     must("controls").querySelectorAll("input, select").forEach((el) => {
         el.disabled = running;
     });
@@ -234,11 +242,43 @@ function renderLegend() {
         list.append(item);
     }
 }
+function focusedID() {
+    if (!state.focus)
+        return "";
+    return state.results[state.focus.strategy]?.response?.id ?? "";
+}
+function updateExportButtons() {
+    const available = !state.running && focusedID() !== "";
+    must("export-json").disabled = !available;
+    must("export-csv").disabled = !available;
+}
 function renderAll() {
     renderProgress();
     renderCards();
     renderTable();
     drawCharts();
+    updateExportButtons();
+}
+function applyPreset(name) {
+    const preset = PRESETS[name];
+    if (!preset || state.running)
+        return;
+    must("workload").value = "cpu";
+    must("tasks").value = String(preset.tasks);
+    must("concurrency").value = String(preset.concurrency);
+    must("queue_size").value = String(preset.queue_size);
+    must("runs").value = String(preset.runs);
+    must("iterations").value = String(preset.iterations);
+    syncWorkloadFields();
+}
+function downloadExport(kind) {
+    const id = focusedID();
+    if (!id)
+        return;
+    const link = document.createElement("a");
+    link.href = "/api/benchmarks/" + id + "/export." + kind;
+    link.download = "benchmark-" + id + "." + kind;
+    link.click();
 }
 function emptyLive() {
     return { throughput: [], goroutines: [], heap: [] };
@@ -385,6 +425,11 @@ must("cancel").addEventListener("click", () => {
         return;
     void fetch("/api/benchmarks/" + state.activeId + "/cancel", { method: "POST" });
 });
+must("presets").querySelectorAll("button").forEach((button) => {
+    button.addEventListener("click", () => applyPreset(button.dataset.preset ?? ""));
+});
+must("export-json").addEventListener("click", () => downloadExport("json"));
+must("export-csv").addEventListener("click", () => downloadExport("csv"));
 window.addEventListener("resize", drawCharts);
 renderLegend();
 syncWorkloadFields();

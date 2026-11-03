@@ -113,6 +113,8 @@ input, select {
   font-size: 0.95rem;
 }
 
+.presets, .exports { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.exports { grid-template-columns: 1fr 1fr; margin-top: 10px; }
 .actions { display: grid; gap: 6px; }
 
 button {

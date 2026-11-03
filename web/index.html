@@ -51,6 +51,11 @@
         <label id="task-ms-field" hidden>Task ms
           <input id="task_ms" name="task_ms" type="number" min="1" value="5">
         </label>
+        <div class="presets" id="presets">
+          <button type="button" data-preset="light">Light</button>
+          <button type="button" data-preset="medium">Medium</button>
+          <button type="button" data-preset="heavy">Heavy</button>
+        </div>
         <div class="actions">
           <button id="compare" class="primary" type="button">Compare all</button>
           <button id="run-one" type="button">Run selected</button>
@@ -65,6 +70,10 @@
           <div class="bar" aria-hidden="true"><span id="bar"></span></div>
           <p class="meta" id="meta"></p>
           <p class="error" id="error" hidden></p>
+          <div class="exports" id="exports">
+            <button id="export-json" type="button" disabled>Export JSON</button>
+            <button id="export-csv" type="button" disabled>Export CSV</button>
+          </div>
         </section>
 
         <section class="cards" id="cards"></section>

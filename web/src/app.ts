@@ -89,6 +89,12 @@ interface BenchConfig {
   task_ms?: number;
 }
 
+const PRESETS: Record<string, { tasks: number; concurrency: number; queue_size: number; runs: number; iterations: number }> = {
+  light: { tasks: 200, concurrency: 4, queue_size: 0, runs: 1, iterations: 2000 },
+  medium: { tasks: 2000, concurrency: 8, queue_size: 32, runs: 3, iterations: 8000 },
+  heavy: { tasks: 20000, concurrency: 16, queue_size: 128, runs: 3, iterations: 20000 },
+};
+
 const STRATEGIES: Strategy[] = [
   { id: "sequential", label: "Sequential", color: "#9aa89a" },
   { id: "fanout", label: "Fan-out", color: "#e37b3a" },
@@ -184,6 +190,9 @@ function setRunning(running: boolean): void {
   must<HTMLButtonElement>("compare").disabled = running;
   must<HTMLButtonElement>("run-one").disabled = running;
   must<HTMLButtonElement>("cancel").disabled = !running;
+  must<HTMLElement>("presets").querySelectorAll("button").forEach((button) => {
+    (button as HTMLButtonElement).disabled = running;
+  });
   must<HTMLFormElement>("controls").querySelectorAll("input, select").forEach((el) => {
     (el as HTMLInputElement).disabled = running;
   });
@@ -341,11 +350,44 @@ function renderLegend(): void {
   }
 }
 
+function focusedID(): string {
+  if (!state.focus) return "";
+  return state.results[state.focus.strategy]?.response?.id ?? "";
+}
+
+function updateExportButtons(): void {
+  const available = !state.running && focusedID() !== "";
+  must<HTMLButtonElement>("export-json").disabled = !available;
+  must<HTMLButtonElement>("export-csv").disabled = !available;
+}
+
 function renderAll(): void {
   renderProgress();
   renderCards();
   renderTable();
   drawCharts();
+  updateExportButtons();
+}
+
+function applyPreset(name: string): void {
+  const preset = PRESETS[name];
+  if (!preset || state.running) return;
+  must<HTMLSelectElement>("workload").value = "cpu";
+  must<HTMLInputElement>("tasks").value = String(preset.tasks);
+  must<HTMLInputElement>("concurrency").value = String(preset.concurrency);
+  must<HTMLInputElement>("queue_size").value = String(preset.queue_size);
+  must<HTMLInputElement>("runs").value = String(preset.runs);
+  must<HTMLInputElement>("iterations").value = String(preset.iterations);
+  syncWorkloadFields();
+}
+
+function downloadExport(kind: "json" | "csv"): void {
+  const id = focusedID();
+  if (!id) return;
+  const link = document.createElement("a");
+  link.href = "/api/benchmarks/" + id + "/export." + kind;
+  link.download = "benchmark-" + id + "." + kind;
+  link.click();
 }
 
 function emptyLive(): LiveSamples {
@@ -487,6 +529,11 @@ must<HTMLButtonElement>("cancel").addEventListener("click", () => {
   if (!state.activeId) return;
   void fetch("/api/benchmarks/" + state.activeId + "/cancel", { method: "POST" });
 });
+must<HTMLElement>("presets").querySelectorAll("button").forEach((button) => {
+  button.addEventListener("click", () => applyPreset((button as HTMLButtonElement).dataset.preset ?? ""));
+});
+must<HTMLButtonElement>("export-json").addEventListener("click", () => downloadExport("json"));
+must<HTMLButtonElement>("export-csv").addEventListener("click", () => downloadExport("csv"));
 window.addEventListener("resize", drawCharts);
 
 renderLegend();
