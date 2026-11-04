@@ -166,6 +166,8 @@ function configKey(): string {
 
 function formatMS(value: number | null | undefined): string {
   if (typeof value !== "number" || !Number.isFinite(value)) return "—";
+  const abs = Math.abs(value);
+  if (abs > 0 && abs < 0.01) return value.toFixed(3) + " ms";
   return value.toFixed(2) + " ms";
 }
 
