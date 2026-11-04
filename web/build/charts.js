@@ -14,7 +14,7 @@ function draw(canvas, series, options) {
     const pad = { left: 58, right: 12, top: 16, bottom: 28 };
     const plotW = Math.max(1, width - pad.left - pad.right);
     const plotH = Math.max(1, height - pad.top - pad.bottom);
-    ctx.fillStyle = "#0e1411";
+    ctx.fillStyle = "#fbfbfc";
     ctx.fillRect(0, 0, width, height);
     const points = [];
     for (const line of series) {
@@ -24,7 +24,7 @@ function draw(canvas, series, options) {
         }
     }
     if (!points.length) {
-        ctx.fillStyle = "#8b978c";
+        ctx.fillStyle = "#5c6573";
         ctx.font = "12px ui-monospace, monospace";
         ctx.fillText(opts.empty ?? "Waiting for a run", pad.left, pad.top + 18);
         return;
@@ -41,8 +41,8 @@ function draw(canvas, series, options) {
         maxX = minX + 1;
     if (maxY <= 0)
         maxY = 1;
-    ctx.strokeStyle = "#243028";
-    ctx.fillStyle = "#8b978c";
+    ctx.strokeStyle = "#d5dae2";
+    ctx.fillStyle = "#5c6573";
     ctx.lineWidth = 1;
     ctx.font = "11px ui-monospace, monospace";
     for (let tick = 0; tick <= 4; tick++) {
@@ -59,7 +59,7 @@ function draw(canvas, series, options) {
         if (!line.data.length)
             continue;
         ctx.beginPath();
-        ctx.strokeStyle = line.color || "#e6ecdf";
+        ctx.strokeStyle = line.color || "#14161c";
         ctx.lineWidth = 1.6;
         line.data.forEach((point, index) => {
             const x = pad.left + ((point.x - minX) / (maxX - minX)) * plotW;

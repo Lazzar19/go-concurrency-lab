@@ -96,10 +96,10 @@ const PRESETS: Record<string, { tasks: number; concurrency: number; queue_size: 
 };
 
 const STRATEGIES: Strategy[] = [
-  { id: "sequential", label: "Sequential", color: "#9aa89a" },
-  { id: "fanout", label: "Fan-out", color: "#e37b3a" },
-  { id: "semaphore", label: "Semaphore", color: "#3cbfa0" },
-  { id: "worker_pool", label: "Worker pool", color: "#d6c15a" },
+  { id: "sequential", label: "Sequential", color: "#3a3f48" },
+  { id: "fanout", label: "Fan-out", color: "#d55e00" },
+  { id: "semaphore", label: "Semaphore", color: "#0072b2" },
+  { id: "worker_pool", label: "Worker pool", color: "#009e73" },
 ];
 
 const state: {
