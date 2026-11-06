@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/Lazzar19/go-concurrency-lab/internal/benchmark"
+	"github.com/Lazzar19/go-concurrency-lab/internal/storage"
 )
 
 func TestStartRejectsInvalidConfig(t *testing.T) {
@@ -423,6 +424,159 @@ func TestExportRejectsRunningBenchmark(t *testing.T) {
 	if export.StatusCode != http.StatusConflict {
 		t.Fatalf("export status = %d, want 409", export.StatusCode)
 	}
+}
+
+func TestCancelFinishedRunStaysCompleted(t *testing.T) {
+	_, ts := newTestServer(t)
+	id := startTiny(t, ts.URL)
+	waitStatus(t, ts.URL, id, "completed")
+	view := cancelBench(t, ts.URL, id)
+	if view.Status != "completed" {
+		t.Fatalf("cancel status = %s, want completed", view.Status)
+	}
+	view = waitStatus(t, ts.URL, id, "completed")
+	if view.Status != "completed" {
+		t.Fatalf("status = %s", view.Status)
+	}
+}
+
+func TestExportAllowsCancelledAndFailed(t *testing.T) {
+	_, ts := newTestServer(t)
+	res, raw := postJSON(t, ts.URL+"/api/benchmarks", `{
+		"strategy":"worker_pool",
+		"workload":"sleep",
+		"tasks":20,
+		"concurrency":1,
+		"task_ms":400,
+		"queue_size":0,
+		"runs":1
+	}`)
+	if res.StatusCode != http.StatusAccepted {
+		t.Fatalf("start = %d (%s)", res.StatusCode, raw)
+	}
+	var started struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(raw, &started); err != nil {
+		t.Fatal(err)
+	}
+	cancelBench(t, ts.URL, started.ID)
+	waitStatus(t, ts.URL, started.ID, "cancelled")
+	assertExport(t, ts.URL, started.ID, "cancelled")
+
+	h, failedSrv := newTestServer(t)
+	done := make(chan struct{})
+	close(done)
+	rec := &storage.Record{
+		ID:     "failed-job",
+		Status: storage.StatusRunning,
+		Config: benchmark.Config{
+			Strategy:   benchmark.StrategySequential,
+			Workload:   benchmark.WorkloadCPU,
+			Tasks:      1,
+			Iterations: 1,
+			Runs:       1,
+		},
+		Done:   done,
+		Cancel: func() {},
+	}
+	if err := h.store.Start(rec); err != nil {
+		t.Fatal(err)
+	}
+	h.store.Finish(rec.ID, benchmark.Result{}, storage.StatusFailed, "boom")
+	assertExport(t, failedSrv.URL, rec.ID, "failed")
+}
+
+func TestStreamOfFinishedBenchmarkDoesNotChangeStatus(t *testing.T) {
+	_, ts := newTestServer(t)
+	id := startTiny(t, ts.URL)
+	waitStatus(t, ts.URL, id, "completed")
+
+	res, err := http.Get(ts.URL + "/api/benchmarks/" + id + "/stream")
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, err := io.ReadAll(res.Body)
+	res.Body.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(body)
+	if res.StatusCode != http.StatusOK || !strings.Contains(text, "event: progress") || !strings.Contains(text, "event: done") {
+		t.Fatalf("stream = %d %s", res.StatusCode, text)
+	}
+	if !strings.Contains(text, `"status":"completed"`) {
+		t.Fatalf("done event = %s", text)
+	}
+	if view := waitStatus(t, ts.URL, id, "completed"); view.Status != "completed" {
+		t.Fatalf("status = %s", view.Status)
+	}
+}
+
+func startTiny(t *testing.T, base string) string {
+	t.Helper()
+	res, raw := postJSON(t, base+"/api/benchmarks", `{
+		"strategy":"sequential",
+		"workload":"cpu",
+		"tasks":4,
+		"iterations":20,
+		"runs":1
+	}`)
+	if res.StatusCode != http.StatusAccepted {
+		t.Fatalf("start = %d (%s)", res.StatusCode, raw)
+	}
+	var started struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(raw, &started); err != nil {
+		t.Fatal(err)
+	}
+	return started.ID
+}
+
+func assertExport(t *testing.T, base, id, status string) {
+	t.Helper()
+	jsonRes := mustGet(t, base+"/api/benchmarks/"+id+"/export.json")
+	defer jsonRes.Body.Close()
+	if jsonRes.StatusCode != http.StatusOK {
+		t.Fatalf("json status = %d", jsonRes.StatusCode)
+	}
+	if ct := jsonRes.Header.Get("Content-Type"); ct != "application/json" {
+		t.Fatalf("json content-type = %q", ct)
+	}
+	if disp := jsonRes.Header.Get("Content-Disposition"); disp != `attachment; filename="benchmark-`+id+`.json"` {
+		t.Fatalf("json disposition = %q", disp)
+	}
+	var doc struct {
+		Status string `json:"status"`
+	}
+	if err := json.NewDecoder(jsonRes.Body).Decode(&doc); err != nil {
+		t.Fatal(err)
+	}
+	if doc.Status != status {
+		t.Fatalf("json status field = %s, want %s", doc.Status, status)
+	}
+
+	csvRes := mustGet(t, base+"/api/benchmarks/"+id+"/export.csv")
+	defer csvRes.Body.Close()
+	if csvRes.StatusCode != http.StatusOK {
+		t.Fatalf("csv status = %d", csvRes.StatusCode)
+	}
+	if ct := csvRes.Header.Get("Content-Type"); ct != "text/csv; charset=utf-8" {
+		t.Fatalf("csv content-type = %q", ct)
+	}
+	if disp := csvRes.Header.Get("Content-Disposition"); disp != `attachment; filename="benchmark-`+id+`.csv"` {
+		t.Fatalf("csv disposition = %q", disp)
+	}
+}
+
+func mustGet(t *testing.T, url string) *http.Response {
+	t.Helper()
+	res, err := http.Get(url)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return res
 }
 
 func TestDownsampleKeepsEnds(t *testing.T) {
