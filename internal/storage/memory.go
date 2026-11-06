@@ -141,18 +141,23 @@ func (m *Memory) Live(id string) (*benchmark.Monitor, <-chan struct{}, string, e
 	return rec.Monitor, rec.Done, rec.Status, nil
 }
 
+// evict drops the oldest finished jobs until maxRetained remains.
+// A running job stays, and eviction continues past it. The caller holds m.mu.
 func (m *Memory) evict() {
-	for len(m.jobs) > maxRetained && len(m.order) > 0 {
+	seen := 0
+	for len(m.jobs) > maxRetained && seen < len(m.order) {
 		id := m.order[0]
 		m.order = m.order[1:]
+		seen++
 		rec := m.jobs[id]
 		if rec == nil {
 			continue
 		}
 		if rec.Status == StatusRunning {
 			m.order = append(m.order, id)
-			return
+			continue
 		}
 		delete(m.jobs, id)
+		seen = 0
 	}
 }
