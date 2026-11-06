@@ -10,10 +10,14 @@ Requires Go 1.27.
 go run ./cmd/server
 ```
 
-Open [http://localhost:8080](http://localhost:8080). The process listens on `0.0.0.0`. `PORT` changes the port.
+Open [http://localhost:8080](http://localhost:8080). With no `HOST`, the process listens on `127.0.0.1`. `PORT` changes the port. `HOST=0.0.0.0` listens on every interface.
 
 ```bash
 PORT=9090 go run ./cmd/server
+```
+
+```bash
+HOST=0.0.0.0 PORT=9090 go run ./cmd/server
 ```
 
 CPU results follow `GOMAXPROCS`. The default is the number of logical CPUs Go can see.
@@ -24,7 +28,7 @@ CPU results follow `GOMAXPROCS`. The default is the number of logical CPUs Go ca
 docker compose up --build
 ```
 
-The page is at [http://127.0.0.1:8080](http://127.0.0.1:8080). Compose publishes that address on localhost.
+The page is at [http://127.0.0.1:8080](http://127.0.0.1:8080). Compose publishes that address on localhost. The container sets `HOST=0.0.0.0`, so the published port can reach the process.
 
 Set `GOMAXPROCS` when you want two machines, or two container limits, to run the same CPU comparison:
 
