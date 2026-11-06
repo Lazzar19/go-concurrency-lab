@@ -11,7 +11,7 @@ import (
 )
 
 // Stream writes progress about every 100ms.
-// Closing the stream cancels a benchmark that is still running.
+// Closing the stream only stops the events. Cancel is POST /cancel.
 func (h *Handler) Stream(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	_, done, status, err := h.store.Live(id)
@@ -43,7 +43,6 @@ func (h *Handler) Stream(w http.ResponseWriter, r *http.Request) {
 	for {
 		select {
 		case <-r.Context().Done():
-			_, _ = h.store.Cancel(id)
 			return
 		case <-done:
 			_ = h.writeProgress(w, id)
@@ -51,7 +50,6 @@ func (h *Handler) Stream(w http.ResponseWriter, r *http.Request) {
 			return
 		case <-ticker.C:
 			if err := h.writeProgress(w, id); err != nil {
-				_, _ = h.store.Cancel(id)
 				return
 			}
 		}
