@@ -30,6 +30,65 @@ func TestStartRejectsInvalidConfig(t *testing.T) {
 	}
 }
 
+func TestStartRejectsExtraJSONAndMissingType(t *testing.T) {
+	_, ts := newTestServer(t)
+	valid := `{"strategy":"sequential","workload":"cpu","tasks":1,"iterations":1,"runs":1}`
+	cases := []struct {
+		body  string
+		ctype string
+	}{
+		{body: valid + valid, ctype: "application/json"},
+		{body: valid, ctype: ""},
+		{body: valid, ctype: "text/plain"},
+	}
+	for _, tc := range cases {
+		req, err := http.NewRequest(http.MethodPost, ts.URL+"/api/benchmarks", strings.NewReader(tc.body))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if tc.ctype != "" {
+			req.Header.Set("Content-Type", tc.ctype)
+		}
+		res, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		raw, err := io.ReadAll(res.Body)
+		res.Body.Close()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if res.StatusCode != http.StatusBadRequest {
+			t.Fatalf("type %q status = %d, want 400 (%s)", tc.ctype, res.StatusCode, raw)
+		}
+	}
+
+	req, err := http.NewRequest(http.MethodPost, ts.URL+"/api/benchmarks", strings.NewReader(valid))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", "application/json; charset=utf-8")
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := io.ReadAll(res.Body)
+	res.Body.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.StatusCode != http.StatusAccepted {
+		t.Fatalf("charset status = %d, want 202 (%s)", res.StatusCode, raw)
+	}
+	var started struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(raw, &started); err != nil {
+		t.Fatal(err)
+	}
+	cancelBench(t, ts.URL, started.ID)
+}
+
 func TestBenchmarkLifecycle(t *testing.T) {
 	_, ts := newTestServer(t)
 	res, raw := postJSON(t, ts.URL+"/api/benchmarks", `{
