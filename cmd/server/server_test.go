@@ -1,10 +1,13 @@
 package main
 
 import (
+	"context"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestHealth(t *testing.T) {
@@ -47,6 +50,57 @@ func TestDashboardAssets(t *testing.T) {
 		if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), page.needle) {
 			t.Fatalf("%s status=%d body=%q", page.path, rec.Code, rec.Body.String())
 		}
+	}
+}
+
+func TestServeReturnsWhenContextIsCancelled(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	app := newApp(ctx)
+	bound := make(chan string, 1)
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- serve(ctx, "127.0.0.1:0", app.mux, app.handler.Wait, func(addr string) {
+			bound <- addr
+		})
+	}()
+	var addr string
+	select {
+	case addr = <-bound:
+	case err := <-errCh:
+		t.Fatalf("serve ended before listen: %v", err)
+	case <-time.After(2 * time.Second):
+		t.Fatal("listener did not open")
+	}
+
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		res, err := http.Get("http://" + addr + "/health")
+		if err == nil {
+			body, readErr := io.ReadAll(res.Body)
+			res.Body.Close()
+			if readErr != nil {
+				t.Fatal(readErr)
+			}
+			if res.StatusCode != http.StatusOK || string(body) != "ok\n" {
+				t.Fatalf("health = %d %q", res.StatusCode, body)
+			}
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("health: %v", err)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	cancel()
+	select {
+	case err := <-errCh:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("serve did not return after cancel")
 	}
 }
 
