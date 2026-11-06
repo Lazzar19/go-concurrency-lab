@@ -21,6 +21,8 @@ COPY --from=build --chown=65532:65532 /out/server /server
 USER 65532
 
 ENV PORT=8080
+# Opt in to every interface. A local `go run` leaves HOST empty and stays on 127.0.0.1.
+ENV HOST=0.0.0.0
 EXPOSE 8080
 
 HEALTHCHECK --interval=5s --timeout=3s --start-period=5s --retries=3 \
