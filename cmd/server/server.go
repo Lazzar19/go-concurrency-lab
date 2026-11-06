@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"io"
 	"net/http"
 
@@ -8,12 +9,23 @@ import (
 	"github.com/Lazzar19/go-concurrency-lab/web"
 )
 
-func newMux() *http.ServeMux {
+type app struct {
+	handler *api.Handler
+	mux     *http.ServeMux
+}
+
+func newApp(ctx context.Context) *app {
+	h := api.NewHandler()
+	h.UseContext(ctx)
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", health)
-	api.NewHandler().Register(mux)
+	h.Register(mux)
 	mux.Handle("GET /", http.FileServer(http.FS(web.Files)))
-	return mux
+	return &app{handler: h, mux: mux}
+}
+
+func newMux() *http.ServeMux {
+	return newApp(context.Background()).mux
 }
 
 func health(w http.ResponseWriter, r *http.Request) {
