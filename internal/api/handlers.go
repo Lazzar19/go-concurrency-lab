@@ -7,6 +7,8 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"io"
+	"mime"
 	"net/http"
 	"sort"
 	"time"
@@ -37,12 +39,26 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/benchmarks/{id}/export.csv", h.ExportCSV)
 }
 
+// jsonMediaType reports whether header is application/json, with an optional charset.
+func jsonMediaType(header string) bool {
+	media, _, err := mime.ParseMediaType(header)
+	return err == nil && media == "application/json"
+}
+
 // Start validates the body and launches one benchmark.
 func (h *Handler) Start(w http.ResponseWriter, r *http.Request) {
+	if !jsonMediaType(r.Header.Get("Content-Type")) {
+		writeError(w, http.StatusBadRequest, "Content-Type must be application/json")
+		return
+	}
 	var cfg benchmark.Config
 	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20))
 	if err := dec.Decode(&cfg); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid JSON")
+		return
+	}
+	if err := dec.Decode(&struct{}{}); err != io.EOF {
+		writeError(w, http.StatusBadRequest, "request body must contain one JSON object")
 		return
 	}
 	if err := cfg.Validate(); err != nil {
