@@ -105,10 +105,16 @@ func TestServeReturnsWhenContextIsCancelled(t *testing.T) {
 }
 
 func TestListenAddr(t *testing.T) {
-	if got := listenAddr(""); got != "0.0.0.0:8080" {
+	if got := listenAddr("", ""); got != "127.0.0.1:8080" {
 		t.Fatalf("default addr = %s", got)
 	}
-	if got := listenAddr("9090"); got != "0.0.0.0:9090" {
-		t.Fatalf("custom addr = %s", got)
+	if got := listenAddr("", "9090"); got != "127.0.0.1:9090" {
+		t.Fatalf("custom port = %s", got)
+	}
+	if got := listenAddr("0.0.0.0", "8080"); got != "0.0.0.0:8080" {
+		t.Fatalf("all interfaces = %s", got)
+	}
+	if got := listenAddr("::1", ""); got != "[::1]:8080" {
+		t.Fatalf("ipv6 = %s", got)
 	}
 }

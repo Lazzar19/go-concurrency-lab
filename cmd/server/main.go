@@ -18,7 +18,7 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	addr := listenAddr(os.Getenv("PORT"))
+	addr := listenAddr(os.Getenv("HOST"), os.Getenv("PORT"))
 	log.Printf("listening on %s", addr)
 	app := newApp(ctx)
 	if err := serve(ctx, addr, app.mux, app.handler.Wait, nil); err != nil {
@@ -26,11 +26,14 @@ func main() {
 	}
 }
 
-func listenAddr(port string) string {
+func listenAddr(host, port string) string {
+	if host == "" {
+		host = "127.0.0.1"
+	}
 	if port == "" {
 		port = "8080"
 	}
-	return "0.0.0.0:" + port
+	return net.JoinHostPort(host, port)
 }
 
 // serve accepts connections until ctx is cancelled, then shuts the HTTP
