@@ -7,6 +7,8 @@ services:
       - "127.0.0.1:8080:8080"
     environment:
       PORT: "8080"
+      # The process must accept the container network, or the published port cannot reach it.
+      HOST: "0.0.0.0"
       # Empty means the Go default, which is the CPUs visible in the container.
       # GOMAXPROCS=2 docker compose up --build pins the CPU comparison.
       GOMAXPROCS: ${GOMAXPROCS:-}
