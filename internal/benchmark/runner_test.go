@@ -3,6 +3,7 @@ package benchmark
 import (
 	"context"
 	"errors"
+	"math"
 	"strconv"
 	"testing"
 	"time"
@@ -142,12 +143,44 @@ func TestValidateRejectsBadConfig(t *testing.T) {
 		{Strategy: StrategySequential, Workload: WorkloadCPU, Tasks: 1, Runs: 1},
 		{Strategy: StrategySequential, Workload: WorkloadSleep, Tasks: 1, TaskMS: 0, Runs: 1},
 		{Strategy: StrategySequential, Workload: WorkloadCPU, Tasks: 1, Iterations: 1, Runs: 0},
+		{Strategy: StrategySequential, Workload: WorkloadCPU, Tasks: 1, Iterations: 1, Runs: MaxRuns + 1},
 		{Strategy: StrategyWorkerPool, Workload: WorkloadCPU, Tasks: 1, Iterations: 1, Concurrency: 1, QueueSize: -1, Runs: 1},
+		{Strategy: StrategyFanout, Workload: WorkloadCPU, Tasks: 1, Iterations: 1, QueueSize: MaxQueueSize + 1, Runs: 1},
+		{Strategy: StrategySequential, Workload: WorkloadCPU, Tasks: 1, Iterations: MaxIterations + 1, Runs: 1},
+		{Strategy: StrategySequential, Workload: WorkloadCPU, Tasks: 1, Bytes: MaxBytes + 1, Runs: 1},
+		{Strategy: StrategySequential, Workload: WorkloadSleep, Tasks: 1, TaskMS: MaxTaskMS + 1, Runs: 1},
+		{Strategy: StrategySequential, Workload: WorkloadCPU, Tasks: 1, Iterations: 1, TaskMS: MaxTaskMS + 1, Runs: 1},
+		{Strategy: StrategySequential, Workload: WorkloadSleep, Tasks: 1, Iterations: MaxIterations + 1, TaskMS: 1, Runs: 1},
+		{Strategy: StrategySequential, Workload: WorkloadCPU, Tasks: MaxTasks, Iterations: 1, Runs: 2},
 	}
 	for _, cfg := range cases {
 		if err := cfg.Validate(); !errors.Is(err, ErrInvalidConfig) {
 			t.Fatalf("Validate(%+v) = %v, want ErrInvalidConfig", cfg, err)
 		}
+	}
+}
+
+func TestSampleBudgetRejectsOverflow(t *testing.T) {
+	cfg := Config{Tasks: math.MaxInt, Runs: 2}
+	if err := cfg.sampleBudget(); !errors.Is(err, ErrInvalidConfig) {
+		t.Fatalf("sampleBudget = %v, want ErrInvalidConfig", err)
+	}
+}
+
+func TestPresetsStayInsideCaps(t *testing.T) {
+	presets := []Config{
+		{Strategy: StrategyWorkerPool, Workload: WorkloadCPU, Tasks: 200, Concurrency: 4, QueueSize: 0, Runs: 1, Iterations: 2_000},
+		{Strategy: StrategyWorkerPool, Workload: WorkloadCPU, Tasks: 2_000, Concurrency: 8, QueueSize: 32, Runs: 3, Iterations: 8_000},
+		{Strategy: StrategyWorkerPool, Workload: WorkloadCPU, Tasks: 20_000, Concurrency: 16, QueueSize: 128, Runs: 3, Iterations: 20_000},
+	}
+	for _, cfg := range presets {
+		if err := cfg.Validate(); err != nil {
+			t.Fatalf("preset %+v: %v", cfg, err)
+		}
+	}
+	edge := Config{Strategy: StrategySequential, Workload: WorkloadCPU, Tasks: MaxTasks, Iterations: 1, Runs: 1}
+	if err := edge.Validate(); err != nil {
+		t.Fatalf("full single run: %v", err)
 	}
 }
 
