@@ -579,6 +579,44 @@ func mustGet(t *testing.T, url string) *http.Response {
 	return res
 }
 
+func TestParentContextCancelStopsRun(t *testing.T) {
+	parent, stop := context.WithCancel(context.Background())
+	defer stop()
+	h := NewHandler()
+	h.UseContext(parent)
+	mux := http.NewServeMux()
+	h.Register(mux)
+	ts := httptest.NewServer(mux)
+	t.Cleanup(ts.Close)
+
+	res, raw := postJSON(t, ts.URL+"/api/benchmarks", `{
+		"strategy":"worker_pool",
+		"workload":"sleep",
+		"tasks":30,
+		"concurrency":1,
+		"task_ms":400,
+		"queue_size":0,
+		"runs":1
+	}`)
+	if res.StatusCode != http.StatusAccepted {
+		t.Fatalf("start = %d (%s)", res.StatusCode, raw)
+	}
+	var started struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(raw, &started); err != nil {
+		t.Fatal(err)
+	}
+	stop()
+	if err := h.Wait(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	view := waitStatus(t, ts.URL, started.ID, "cancelled")
+	if len(view.Runs) != 1 || view.Runs[0].TasksCompleted >= 30 {
+		t.Fatalf("partial run = %+v", view.Runs)
+	}
+}
+
 func TestDownsampleKeepsEnds(t *testing.T) {
 	tasks := make([]benchmark.TaskResult, 500)
 	for i := range tasks {

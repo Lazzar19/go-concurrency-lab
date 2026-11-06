@@ -11,6 +11,7 @@ import (
 	"mime"
 	"net/http"
 	"sort"
+	"sync"
 	"time"
 
 	"github.com/Lazzar19/go-concurrency-lab/internal/benchmark"
@@ -22,11 +23,37 @@ const maxSeriesPoints = 200
 // Handler serves benchmark routes. At most one benchmark runs at a time.
 type Handler struct {
 	store *storage.Memory
+	root  context.Context
+	wg    sync.WaitGroup
 }
 
 // NewHandler returns a handler with an empty in-memory store.
+// Benchmarks use context.Background until UseContext sets a parent.
 func NewHandler() *Handler {
-	return &Handler{store: storage.New()}
+	return &Handler{store: storage.New(), root: context.Background()}
+}
+
+// UseContext makes every new benchmark a child of ctx.
+// Cancelling ctx cancels the active run through the same path as POST /cancel.
+func (h *Handler) UseContext(ctx context.Context) {
+	if ctx != nil {
+		h.root = ctx
+	}
+}
+
+// Wait blocks until started benchmarks finish, or until ctx ends.
+func (h *Handler) Wait(ctx context.Context) error {
+	done := make(chan struct{})
+	go func() {
+		h.wg.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 // Register attaches the benchmark routes to mux.
@@ -66,7 +93,7 @@ func (h *Handler) Start(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(h.root)
 	rec := &storage.Record{
 		ID:      newID(),
 		Status:  storage.StatusRunning,
@@ -91,7 +118,12 @@ func (h *Handler) Start(w http.ResponseWriter, r *http.Request) {
 
 	id := rec.ID
 	status := rec.Status
-	go h.run(ctx, rec)
+	h.wg.Add(1)
+	go func() {
+		defer h.wg.Done()
+		defer cancel()
+		h.run(ctx, rec)
+	}()
 	writeJSON(w, http.StatusAccepted, map[string]string{
 		"id":     id,
 		"status": status,
