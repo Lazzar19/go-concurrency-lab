@@ -170,7 +170,7 @@ func TestStreamEmitsProgressThenDone(t *testing.T) {
 	}
 }
 
-func TestStreamDisconnectCancels(t *testing.T) {
+func TestStreamDisconnectLeavesRunRunning(t *testing.T) {
 	_, ts := newTestServer(t)
 	res, raw := postJSON(t, ts.URL+"/api/benchmarks", `{
 		"strategy":"worker_pool",
@@ -229,7 +229,29 @@ func TestStreamDisconnectCancels(t *testing.T) {
 		t.Fatal("stream did not return after disconnect")
 	}
 
-	view := waitStatus(t, ts.URL, started.ID, "cancelled")
+	deadline := time.Now().Add(300 * time.Millisecond)
+	for time.Now().Before(deadline) {
+		res, err = http.Get(ts.URL + "/api/benchmarks/" + started.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var view benchmarkResponse
+		if err := json.NewDecoder(res.Body).Decode(&view); err != nil {
+			res.Body.Close()
+			t.Fatal(err)
+		}
+		res.Body.Close()
+		if view.Status != "running" {
+			t.Fatalf("status = %s, want running after the stream closed", view.Status)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+
+	view := cancelBench(t, ts.URL, started.ID)
+	if view.Status != "cancelled" {
+		t.Fatalf("cancel status = %s", view.Status)
+	}
+	view = waitStatus(t, ts.URL, started.ID, "cancelled")
 	if len(view.Runs) != 1 || view.Runs[0].TasksCompleted >= 30 {
 		t.Fatalf("partial run = %+v", view.Runs)
 	}
