@@ -1,0 +1,11 @@
+{
+  "name": "go-concurrency-lab-demo",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "record": "node record-demo.mjs"
+  },
+  "dependencies": {
+    "playwright": "1.48.2"
+  }
+}

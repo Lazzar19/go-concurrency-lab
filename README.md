@@ -7,6 +7,10 @@
 
 Interactive dashboard for comparing Go concurrency strategies under CPU-bound and sleep-based workloads.
 
+![Demo: comparing Go concurrency strategies](docs/demo.gif)
+
+<sub>Recorded from the dashboard while comparing the four scheduling strategies.</sub>
+
 The project is a learning lab. It compares sequential execution, unbounded fan-out, semaphore-limited fan-out, and a fixed worker pool, and it reports throughput, latency percentiles, goroutine usage, and heap usage. The measurements are controlled experiments, not a formal benchmark suite.
 
 ## What it demonstrates
