@@ -89,7 +89,7 @@ An empty `GOMAXPROCS` leaves Go's default, which is the CPU count visible inside
 - **Throughput** is finished tasks per second.
 - **End-to-end latency** is the time from submitting a task until it finishes.
 - **Service latency** is the time spent in the workload itself.
-- **P50** is the middle of that run, the more typical result.
+- **P50** is the median latency for the run.
 - **P95 and P99** are the slow tail. A high tail can mean queueing or uneven scheduling even when throughput looks fine.
 - **Goroutines peak** is the highest goroutine count during the run.
 - **Heap peak** is the highest reported heap.
