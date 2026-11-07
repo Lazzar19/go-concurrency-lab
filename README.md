@@ -1,5 +1,10 @@
 # Go Concurrency Lab
 
+[![CI](https://github.com/Lazzar19/go-concurrency-lab/actions/workflows/ci.yml/badge.svg)](https://github.com/Lazzar19/go-concurrency-lab/actions/workflows/ci.yml)
+![Go](https://img.shields.io/badge/Go-1.27-blue?style=flat&logo=go)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.9-blue?style=flat&logo=typescript)
+[![License](https://img.shields.io/badge/license-MIT-blue?style=flat)](LICENSE)
+
 Interactive dashboard for comparing Go concurrency strategies under CPU-bound and sleep-based workloads.
 
 The project is a learning lab. It compares sequential execution, unbounded fan-out, semaphore-limited fan-out, and a fixed worker pool, and it reports throughput, latency percentiles, goroutine usage, and heap usage. The measurements are controlled experiments, not a formal benchmark suite.
